@@ -1,8 +1,0 @@
---------------------------
--- Watchdog
---
--- Keeps an eye on key 
--- components and takes 
--- emergency actions as 
--- needed
---------------------------

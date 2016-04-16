@@ -1,0 +1,3 @@
+deploy.opencomputers=[OC_DRIVE_PATH]
+deploy.httpd=[HTTPD_WWW_PATH]
+deploy.verbose=false

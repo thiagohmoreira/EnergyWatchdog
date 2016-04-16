@@ -1,5 +1,4 @@
 package.path = '/EnergyWatchdog/lib/?.lua;/EnergyWatchdog/conf/?.lua;' .. package.path
---package.path = '../lib/?.lua;../conf/?.lua' .. package.path
 
 local component = require('component')
 local shell = require("shell")
