@@ -14,6 +14,12 @@ local function main(args, options)
     -- Init components / data
     local reactor = component.getPrimary("br_reactor")
     local capacitor = component.getPrimary("tile_blockcapacitorbank_name")
+
+    -- TODO: Ensure same turbine order across restarts
+    local turbines = {}
+    for addr in component.list("br_turbine") do
+      table.insert(turbines, component.proxy(addr))
+    end
     local maxEnergyStored = capacitor.getMaxEnergyStored() -- RF
 
     -- Clear the terminal screen
@@ -63,17 +69,18 @@ local function main(args, options)
         end
 
         -- Write output
-        -- term.clear()
         term.setCursor(1, 1)
         term.write(string.format(
-                "Current Time: %s\n\n" ..
+                "Uptime: %s\n\n" ..
 
-                "Capacitor Monitoring\n" ..
+                "Capacitor Monitoring\n\n" ..
                 "  Charge: %s / %s RF (%.2f %%)\n" ..
-                "  I/O: %s RF/sec | ETA: %s\n\n" ..
+                "  I/O: %s RF/sec | ETA: %s\n\n\n" ..
 
-                "Reactor Monitoring\n" ..
-                "  State: %s | Last update: %s",
+                "Reactor Monitoring\n\n" ..
+                "  State: %s | Last update: %s\n\n\n" ..
+
+                "Turbine Monitoring\n\n",
 
             util.commaInt(now),
 
@@ -87,6 +94,31 @@ local function main(args, options)
             reactor.getActive() and 'Active' or 'Inactive',
             lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50)
         ))
+
+        --- TODO: Create a reusable table writer
+        term.write(string.format(
+            "  ┌───┬──────────┬──────────┬─────────────┬────────────────────┬───────────────┐\n" ..
+            "  │ %s │ %-8s │ %-8s │ %-11s │ %-18s │ %-13s │\n" ..
+            "  ├───┼──────────┼──────────┼─────────────┼────────────────────┼───────────────┤\n",
+            '#',
+            'State',
+            'Inductor',
+            'Speed (RPM)',
+            'Fluid / Max (mB/t)',
+            'Output (RF/t)'
+        ))
+        for i, turbine in ipairs(turbines) do
+            term.write(string.format(
+                "  │ %d │ %-8s │ %-8s │ %11s │ %18s │ %13s │\n",
+                i,
+                turbine.getActive() and 'Active' or 'Inactive',
+                turbine.getInductorEngaged() and 'Active' or 'Inactive',
+                util.commaFloat(turbine.getRotorSpeed(), 2),
+                util.commaInt(turbine.getFluidFlowRate()) .. ' / ' ..  util.commaInt(turbine.getFluidFlowRateMax()),
+                util.commaFloat(turbine.getEnergyProducedLastTick(), 2)
+            ))
+        end
+        term.write("  └───┴──────────┴──────────┴─────────────┴────────────────────┴───────────────┘\n\n\n")
 
         -- Update the last energy read
         lastEnergyStored = currentEnergyStored
