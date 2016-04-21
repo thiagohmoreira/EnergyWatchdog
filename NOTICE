@@ -7,10 +7,10 @@ it's origin.
 
 These pieces are:
 
-- Some number formatting functions from http://lua-users.org and
+- Unmodified number formatting functions from http://lua-users.org and
 http://richard.warburton.it found here: http://lua-users.org/wiki/FormattingNumbers
 
-- Simple JSON encoding and decoding in pure Lua version 20141223.14 by
+- Unmodified Simple JSON encoding and decoding in pure Lua version 20141223.14 by
 Jeffrey Friedl (http://regex.info/blog/). This code is released under the
 Creative Commons CC-BY "Attribution" License
 (http://creativecommons.org/licenses/by/3.0/deed.en_US)

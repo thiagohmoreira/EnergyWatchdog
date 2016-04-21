@@ -20,28 +20,50 @@ local function main(args, options)
     term.clear()
 
     local lastUpdate
+    local avgChargeIO
     local lastEnergyStored = capacitor.getEnergyStored()
     while true do
         -- Gather needed data
         local now = computer.uptime()
         local currentEnergyStored = capacitor.getEnergyStored()
 
-        -- Calculate the charge I/O
-        local deltaCharge = (currentEnergyStored - lastEnergyStored) / sleepTime -- RF/sec
-        local emptyFullETA = math.abs(math.floor(currentEnergyStored / deltaCharge)) -- sec => Time to empty/fill capacitor
+        -- Calculate the 'instant' charge I/O
+        local chargeIO = (currentEnergyStored - lastEnergyStored) / sleepTime -- RF/sec
+
+        -- Calculates the charge I/O moving average
+        if avgChargeIO == nil then
+            avgChargeIO = chargeIO
+        else
+            avgChargeIO = (avgChargeIO + chargeIO) / 2
+        end
+
+        -- Calculates the time needed to empty or fill the capacitor
+        local emptyFullETA -- sec
+        if avgChargeIO == 0 then
+            emptyFullETA = 0
+        else
+            local energy
+            if avgChargeIO > 0 then
+                energy = maxEnergyStored - currentEnergyStored
+            else
+                energy = currentEnergyStored
+            end
+
+            emptyFullETA = math.floor(energy / avgChargeIO)
+        end
 
         -- Calculate the charge percentage and ativate or deactivate reactor accordingly
         local chargePercentage = currentEnergyStored / maxEnergyStored -- %
-        if (chargePercentage <= minChargePercentage and not reactor.getActive()) then
+        if chargePercentage <= minChargePercentage and not reactor.getActive() then
             reactor.setActive(true)
             lastUpdate = now
-        elseif (chargePercentage >= maxChargePercentage and reactor.getActive()) then
+        elseif chargePercentage >= maxChargePercentage and reactor.getActive() then
             reactor.setActive(false)
             lastUpdate = now
         end
 
         -- Write output
-        -- TODO: Check if not cleanning screen, only writing to it won't be an issue
+        -- term.clear()
         term.setCursor(1, 1)
         term.write(string.format(
                 "Current Time: %s\n\n" ..
@@ -59,11 +81,11 @@ local function main(args, options)
             util.commaInt(maxEnergyStored),
             chargePercentage * 100,
 
-            util.commaFloat(deltaCharge, 2),
-            util.secsToTime(emptyFullETA),
+            util.commaFloat(avgChargeIO, 2),
+            util.secsToTime(emptyFullETA) .. string.rep(string.char(32), 50),
 
             reactor.getActive() and 'Active' or 'Inactive',
-            lastUpdate == nil and '-' or util.commaInt(lastUpdate)
+            lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50)
         ))
 
         -- Update the last energy read

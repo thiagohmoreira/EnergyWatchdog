@@ -35,16 +35,49 @@ function util.commaValue(n) -- credit http://richard.warburton.it
 end
 -- END From http://lua-users.org/wiki/FormattingNumbers
 
-function util.secsToTime(s)
-  local days = 0
-  if s >= 86400 then
-    days = math.floor(s/86400)
-    return string.format("%02d", days) .. ":" .. os.date("!%X", s - (days * 86400))
-  else
-    return os.date("!%X", s)
-  end
+util.WEEK   = 604800
+util.DAY    = 86400
+util.HOUR   = 3600
+util.MINUTE = 60
+
+function util.splitSecs(secs)
+    local remainder
+
+    local weeks = math.floor(secs / util.WEEK)
+    remainder = secs % util.WEEK
+    local days = math.floor(remainder / util.DAY)
+    remainder = remainder % util.DAY
+    local hours = math.floor(remainder / util.HOUR)
+    remainder = remainder % util.HOUR
+    local minutes = math.floor(remainder / util.MINUTE)
+    local seconds = remainder % util.MINUTE
+
+    return weeks, days, hours, minutes, seconds
 end
 
+function util.secsToTime(s)
+    local weeks, days, hours, minutes, seconds = util.splitSecs(math.abs(s))
+
+    local time = seconds .. ' second(s), '
+
+    if minutes > 0 then
+        time  = minutes .. ' minute(s), ' .. time
+    end
+
+    if hours > 0 then
+        time = hours .. ' hour(s), ' .. time
+    end
+
+    if days > 0 then
+        time = days .. ' day(s), ' .. time
+    end
+
+    if weeks > 0 then
+        time = weeks .. ' week(s), ' .. time
+    end
+
+    return string.sub(time, 1, -3)
+end
 
 function util.getComputerInfo()
     local reactor = require('reactor')
