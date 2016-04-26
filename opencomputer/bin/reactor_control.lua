@@ -2,9 +2,13 @@ package.path = '/EnergyWatchdog/lib/?.lua;/EnergyWatchdog/conf/?.lua;' .. packag
 
 local component = require('component')
 local shell = require("shell")
-local util = require("util")
 local term = require("term")
 local computer = require("computer")
+
+local util = require("util")
+local prettyTable = require("prettyTable")
+local Capacitor = require("Capacitor")
+
 
 local function main(args, options)
     local minChargePercentage = 0.5 -- %
@@ -13,53 +17,59 @@ local function main(args, options)
 
     -- Init components / data
     local reactor = component.getPrimary("br_reactor")
-    local capacitor = component.getPrimary("tile_blockcapacitorbank_name")
+
+    -- TODO: Ensure same capacitor order across restarts
+    local capacitors = {}
+    for addr in component.list("tile_blockcapacitorbank_name") do
+      table.insert(capacitors, Capacitor:new(addr, computer.uptime()))
+    end
 
     -- TODO: Ensure same turbine order across restarts
     local turbines = {}
     for addr in component.list("br_turbine") do
       table.insert(turbines, component.proxy(addr))
     end
-    local maxEnergyStored = capacitor.getMaxEnergyStored() -- RF
 
     -- Clear the terminal screen
     term.clear()
 
     local lastUpdate
-    local avgChargeIO
-    local lastEnergyStored = capacitor.getEnergyStored()
     while true do
         -- Gather needed data
         local now = computer.uptime()
-        local currentEnergyStored = capacitor.getEnergyStored()
 
-        -- Calculate the 'instant' charge I/O
-        local chargeIO = (currentEnergyStored - lastEnergyStored) / sleepTime -- RF/sec
+        -- Create capacitor monitoring table
+        local capacitorsInfo = prettyTable:new{
+            head = {
+                '#',
+                'Charge (RF | %)',
+                'I/O (RF/sec)',
+                'ETA'
+            },
+            colWidths = { 1, 32, 12, -50 },
+            style = { marginLeft = 2, compact = true }
+        }
+        local minCharge
 
-        -- Calculates the charge I/O moving average
-        if avgChargeIO == nil then
-            avgChargeIO = chargeIO
-        else
-            avgChargeIO = (avgChargeIO + chargeIO) / 2
-        end
+        local chargePercentage = 1
+        for i, capacitor in ipairs(capacitors) do
+            capacitor:update(now)
+            capacitorsInfo:push({
+                i,
+                util.commaInt(capacitor.proxy.getEnergyStored()) .. ' / ' ..
+                util.commaInt(capacitor.maxEnergyStored) .. ' (' ..
+                util.commaFloat(capacitor.chargePercentage * 100, 2) .. ')',
+                util.commaFloat(capacitor.avgChargeIO, 2),
+                util.secsToTime(capacitor.emptyFullETA)
+            })
 
-        -- Calculates the time needed to empty or fill the capacitor
-        local emptyFullETA -- sec
-        if avgChargeIO == 0 then
-            emptyFullETA = 0
-        else
-            local energy
-            if avgChargeIO > 0 then
-                energy = maxEnergyStored - currentEnergyStored
-            else
-                energy = currentEnergyStored
+            -- Get the emptier capacitor
+            if capacitor.chargePercentage < chargePercentage then
+                chargePercentage = capacitor.chargePercentage
             end
-
-            emptyFullETA = math.floor(energy / avgChargeIO)
         end
 
-        -- Calculate the charge percentage and ativate or deactivate reactor accordingly
-        local chargePercentage = currentEnergyStored / maxEnergyStored -- %
+        -- Check for reactor activation need
         if chargePercentage <= minChargePercentage and not reactor.getActive() then
             reactor.setActive(true)
             lastUpdate = now
@@ -68,60 +78,51 @@ local function main(args, options)
             lastUpdate = now
         end
 
-        -- Write output
-        term.setCursor(1, 1)
-        term.write(string.format(
-                "Uptime: %s\n\n" ..
-
-                "Capacitor Monitoring\n\n" ..
-                "  Charge: %s / %s RF (%.2f %%)\n" ..
-                "  I/O: %s RF/sec | ETA: %s\n\n\n" ..
-
-                "Reactor Monitoring\n\n" ..
-                "  State: %s | Last update: %s\n\n\n" ..
-
-                "Turbine Monitoring\n\n",
-
-            util.commaInt(now),
-
-            util.commaInt(capacitor.getEnergyStored()),
-            util.commaInt(maxEnergyStored),
-            chargePercentage * 100,
-
-            util.commaFloat(avgChargeIO, 2),
-            util.secsToTime(emptyFullETA) .. string.rep(string.char(32), 50),
-
-            reactor.getActive() and 'Active' or 'Inactive',
-            lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50)
-        ))
-
-        --- TODO: Create a reusable table writer
-        term.write(string.format(
-            "  ┌───┬──────────┬──────────┬─────────────┬────────────────────┬───────────────┐\n" ..
-            "  │ %s │ %-8s │ %-8s │ %-11s │ %-18s │ %-13s │\n" ..
-            "  ├───┼──────────┼──────────┼─────────────┼────────────────────┼───────────────┤\n",
-            '#',
-            'State',
-            'Inductor',
-            'Speed (RPM)',
-            'Fluid / Max (mB/t)',
-            'Output (RF/t)'
-        ))
+        -- Create tubine monitoring table
+        local turbinesInfo = prettyTable:new{
+            head = {
+                '#',
+                'State',
+                'Inductor',
+                'Speed (RPM)',
+                'Fluid / Max (mB/t)',
+                'Output (RF/t)'
+            },
+            colWidths = { 1, -8, -8, 11, 18, 13 },
+            style = { marginLeft = 2, compact = true }
+        }
         for i, turbine in ipairs(turbines) do
-            term.write(string.format(
-                "  │ %d │ %-8s │ %-8s │ %11s │ %18s │ %13s │\n",
+            turbinesInfo:push({
                 i,
                 turbine.getActive() and 'Active' or 'Inactive',
                 turbine.getInductorEngaged() and 'Active' or 'Inactive',
                 util.commaFloat(turbine.getRotorSpeed(), 2),
                 util.commaInt(turbine.getFluidFlowRate()) .. ' / ' ..  util.commaInt(turbine.getFluidFlowRateMax()),
                 util.commaFloat(turbine.getEnergyProducedLastTick(), 2)
-            ))
+            })
         end
-        term.write("  └───┴──────────┴──────────┴─────────────┴────────────────────┴───────────────┘\n\n\n")
 
-        -- Update the last energy read
-        lastEnergyStored = currentEnergyStored
+        -- Write output
+        term.setCursor(1, 1)
+        term.write(string.format(
+                "Uptime: %s\n\n" ..
+
+                "Reactor Monitoring\n\n" ..
+                "  State: %s | Last update: %s\n\n\n" ..
+
+                "Capacitor Monitoring\n\n" ..
+                "%s\n" ..
+
+                "Turbine Monitoring\n\n" ..
+                "%s\n",
+
+            util.commaInt(now),
+
+            reactor.getActive() and 'Active' or 'Inactive',
+            lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50),
+            capacitorsInfo:toString(),
+            turbinesInfo:toString()
+        ))
 
         -- Sleep for a while ^^
         os.sleep(sleepTime)

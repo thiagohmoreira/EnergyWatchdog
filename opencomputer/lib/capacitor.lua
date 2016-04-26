@@ -1,53 +1,74 @@
 --------------------------
 -- Capacitor
 --------------------------
-local computer = require("computer")
-local logger = require("logger")
-local util = require("util")
+
+local component = require('component')
 
 -------------------------------------------------------------------------------
 
-local capacitor = {}
+local Capacitor = {}
 
 -------------------------------------------------------------------------------
 
-function capacitor.monitor(cap, totalCapacity)
-  totalCapacity = totalCapacity or cap.getMaxEnergyStored()
+function Capacitor:new (addr, now)
+    local proxy = component.proxy(addr)
+    o = {
+        addr = addr,
+        proxy = proxy,
+        avgChargeIO,      -- RF/sec
+        emptyFullETA,     -- sec
+        chargePercentage, -- %
 
-  local maxEnergyStored = cap.getMaxEnergyStored() -- in RF
-  local currentEnergyStored = cap.getEnergyStored() -- in RF
-  local sleepTime = 5 -- in secs
-  local multiplier = (maxEnergyStored / totalCapacity) * 20 -- fraction of total capacity * 20 ticks in a sec
+        lastUpdate = now,
+        lastEnergyStored = proxy.getEnergyStored(), -- RF
+        maxEnergyStored = proxy.getMaxEnergyStored() -- RF
+    }
 
-  logger.debugf(
-    "Total Bank Capacity: %s RF - Single Cap Capacity: %s RF - Current Charge: %s RF - Multiplier: %f",
-    util.commaInt(totalCapacity),
-    util.commaInt(maxEnergyStored),
-    util.commaInt(currentEnergyStored),
-    multiplier
-  )
+    setmetatable(o, self)
+    self.__index = self
 
-  local lastEnergyStored
-  while true do
-    os.sleep(sleepTime)
-
-    lastEnergyStored = currentEnergyStored
-    currentEnergyStored = cap.getEnergyStored()
-
-    local delta = (currentEnergyStored - lastEnergyStored) / sleepTime -- in RF/sec
-    local deltaio = delta / multiplier -- in RF/tick
-    local eta = math.abs(math.floor(currentEnergyStored / delta)) -- in secs => Time to empty capacitor
-
-    logger.debugf("Energy: %s RF - Delta: %s RF/sec - IO: %s RF/tick - ETA: %s",
-      util.commaInt(currentEnergyStored),
-      util.commaFloat(delta, 2),
-      util.commaFloat(deltaio, 2),
-      util.secsToTime(eta)
-    )
-  end
+    return o
 end
 
-function capacitor.getInfo(c)
+function Capacitor:update(now)
+    -- Gather needed data
+    local currentEnergyStored = self.proxy.getEnergyStored()
+
+    -- Calculate the 'instant' charge I/O
+    local chargeIO = (currentEnergyStored - self.lastEnergyStored) / (now - self.lastUpdate) -- RF/sec
+
+    -- Calculates the charge I/O moving average
+    if self.avgChargeIO == nil then
+        self.avgChargeIO = chargeIO
+    else
+        self.avgChargeIO = (self.avgChargeIO + chargeIO) / 2
+    end
+
+    -- Calculates the time needed to empty or fill the capacitor
+    if self.avgChargeIO == 0 then
+        self.emptyFullETA = 0
+    else
+        local energy
+        if self.avgChargeIO > 0 then
+            energy = self.maxEnergyStored - currentEnergyStored
+        else
+            energy = currentEnergyStored
+        end
+
+        self.emptyFullETA = math.floor(energy / self.avgChargeIO)
+    end
+
+    -- Calculate the charge percentage and ativate or deactivate reactor accordingly
+    self.chargePercentage = currentEnergyStored / self.maxEnergyStored
+
+    -- Update date for next iterations
+    self.lastEnergyStored = currentEnergyStored
+    self.lastUpdate = now
+end
+
+-------------------------------------------------------------------------------
+
+function Capacitor.getInfo(c)
     return {
         energyStored = c.getEnergyStored(),
         maxEnergyStored = c.getMaxEnergyStored(),
@@ -58,4 +79,4 @@ end
 
 -------------------------------------------------------------------------------
 
-return capacitor
+return Capacitor

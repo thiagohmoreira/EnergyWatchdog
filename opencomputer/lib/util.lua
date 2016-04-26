@@ -95,12 +95,12 @@ end
 function util.getComputerInfo()
     local reactor = require('reactor')
     local turbine = require('turbine')
-    local capacitor = require('capacitor')
+    local Capacitor = require('Capacitor')
 
     local getCmpInfo = {
         ["br_turbine"] = turbine.getInfo,
         ["br_reactor"] = reactor.getInfo,
-        ["tile_blockcapacitorbank_name"] = capacitor.getInfo
+        ["tile_blockcapacitorbank_name"] = Capacitor.getInfo
     }
 
     local componentsDetails = {}
