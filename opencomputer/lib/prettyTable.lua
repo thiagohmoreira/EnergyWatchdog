@@ -1,5 +1,7 @@
 --------------------------
 -- prettyTable
+--
+-- This library is inspired in https://github.com/Automattic/cli-table
 --------------------------
 
 local unicode = require("unicode")
