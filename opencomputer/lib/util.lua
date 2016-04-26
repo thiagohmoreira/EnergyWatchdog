@@ -79,6 +79,19 @@ function util.secsToTime(s)
     return string.sub(time, 1, -3)
 end
 
+function util.applyIf(cfg, obj)
+    for k,v in pairs(cfg) do
+        if type(v) == 'table' then
+            if obj[k] == nil then
+                obj[k] = {}
+            end
+            util.applyIf(v, obj[k])
+        elseif obj[k] == nil then
+            obj[k] = v
+        end
+    end
+end
+
 function util.getComputerInfo()
     local reactor = require('reactor')
     local turbine = require('turbine')
