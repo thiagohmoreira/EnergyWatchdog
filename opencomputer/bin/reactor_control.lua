@@ -38,6 +38,28 @@ local function main(args, options)
         -- Gather needed data
         local now = computer.uptime()
 
+        -- Create reactor rod monitoring table
+        local reactorRodsInfo = prettyTable:new{
+            head = {
+                '#',
+                'Name',
+                'Level (%)',
+                'Location'
+            },
+            colWidths = { 1, -15, 9, -10 },
+            style = { marginLeft = 2, compact = true }
+        }
+
+        for i = 0, reactor.getNumberOfControlRods() - 1 do
+            local x, y, z = reactor.getControlRodLocation(i)
+            reactorRodsInfo:push({
+                i + 1,
+                reactor.getControlRodName(i),
+                reactor.getControlRodLevel(i),
+                string.format('%d, %d, %d', x, y, z)
+            })
+        end
+
         -- Create capacitor monitoring table
         local capacitorsInfo = prettyTable:new{
             head = {
@@ -108,7 +130,8 @@ local function main(args, options)
                 "Uptime: %s\n\n" ..
 
                 "Reactor Monitoring\n\n" ..
-                "  State: %s | Last update: %s\n\n\n" ..
+                "  State: %s | Last update: %s\n" ..
+                "%s\n" ..
 
                 "Capacitor Monitoring\n\n" ..
                 "%s\n" ..
@@ -120,6 +143,7 @@ local function main(args, options)
 
             reactor.getActive() and 'Active' or 'Inactive',
             lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50),
+            reactorRodsInfo:toString(),
             capacitorsInfo:toString(),
             turbinesInfo:toString()
         ))
