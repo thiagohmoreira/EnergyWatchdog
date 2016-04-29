@@ -39,5 +39,8 @@ luac.out
 *.x86_64
 *.hex
 
+# PHP Composer vendor files
+www/includes/EnergyWatchdog/vendor
+
 # Personal files
 scripts/conf/deploy.properties
