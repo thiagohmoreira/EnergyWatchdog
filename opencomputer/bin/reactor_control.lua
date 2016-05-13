@@ -7,8 +7,6 @@ local computer = require("computer")
 
 local util = require("util")
 local prettyTable = require("prettyTable")
-local Capacitor = require("Capacitor")
-
 
 local function main(args, options)
     local minChargePercentage = 0.5 -- %
@@ -17,12 +15,7 @@ local function main(args, options)
 
     -- Init components / data
     local reactor = component.getPrimary("br_reactor")
-
-    -- TODO: Ensure same capacitor order across restarts
-    local capacitors = {}
-    for addr in component.list("tile_blockcapacitorbank_name") do
-      table.insert(capacitors, Capacitor:new(addr, computer.uptime()))
-    end
+    local capacitor = component.getPrimary("capacitor_bank")
 
     -- TODO: Ensure same turbine order across restarts
     local turbines = {}
@@ -65,37 +58,48 @@ local function main(args, options)
             head = {
                 '#',
                 'Charge (RF | %)',
-                'I/O (RF/sec)',
+                'I/O (RF/t)',
                 'ETA'
             },
-            colWidths = { 1, 32, 12, -50 },
+            colWidths = { 1, 45, 12, -50 },
             style = { marginLeft = 2, compact = true }
         }
         local minCharge
 
-        local chargePercentage = 1
-        for i, capacitor in ipairs(capacitors) do
-            capacitor:update(now)
-            capacitorsInfo:push({
-                i,
-                util.commaInt(capacitor.proxy.getEnergyStored()) .. ' / ' ..
-                util.commaInt(capacitor.maxEnergyStored) .. ' (' ..
-                util.commaFloat(capacitor.chargePercentage * 100, 2) .. ')',
-                util.commaFloat(capacitor.avgChargeIO, 2),
-                util.secsToTime(capacitor.emptyFullETA)
-            })
+        local energyStored = capacitor.getEnergyStored()
+        local maxEnergyStored = capacitor.getMaxEnergyStored()
+        local energyStoredPer = (energyStored / maxEnergyStored)
+        local averageChangePerTick = capacitor.getAverageChangePerTick()
 
-            -- Get the emptier capacitor
-            if capacitor.chargePercentage < chargePercentage then
-                chargePercentage = capacitor.chargePercentage
+        local emptyFullETA
+        if averageChangePerTick == 0 then
+            emptyFullETA = 0
+        else
+            local energy
+            if averageChangePerTick > 0 then
+                energy = maxEnergyStored - energyStored
+            else
+                energy = energyStored
             end
+
+            emptyFullETA = math.floor(energy / (averageChangePerTick * 20))
         end
 
+        capacitorsInfo:push({
+            1,
+            util.commaInt(energyStored) .. ' / ' ..
+            util.commaInt(maxEnergyStored) .. ' (' ..
+            util.commaFloat(energyStoredPer * 100, 2) .. ')',
+            util.commaFloat(averageChangePerTick, 2),
+            util.secsToTime(emptyFullETA)
+        })
+
+
         -- Check for reactor activation need
-        if chargePercentage <= minChargePercentage and not reactor.getActive() then
+        if energyStoredPer <= minChargePercentage and not reactor.getActive() then
             reactor.setActive(true)
             lastUpdate = now
-        elseif chargePercentage >= maxChargePercentage and reactor.getActive() then
+        elseif energyStoredPer >= maxChargePercentage and reactor.getActive() then
             reactor.setActive(false)
             lastUpdate = now
         end
@@ -139,10 +143,10 @@ local function main(args, options)
                 "Turbine Monitoring\n\n" ..
                 "%s\n",
 
-            util.commaInt(now),
+            util.secsToTime(now) .. string.rep(string.char(32), 50),
 
             reactor.getActive() and 'Active' or 'Inactive',
-            lastUpdate == nil and '-' or util.commaInt(lastUpdate) .. string.rep(string.char(32), 50),
+            lastUpdate == nil and '-' or util.secsToTime(lastUpdate) .. string.rep(string.char(32), 50),
             reactorRodsInfo:toString(),
             capacitorsInfo:toString(),
             turbinesInfo:toString()
