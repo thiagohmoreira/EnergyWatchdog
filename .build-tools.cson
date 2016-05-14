@@ -1,0 +1,29 @@
+providers: [
+  {
+    key: "java-ant"
+    config:
+      file: "scripts/deploy.xml"
+      props:
+        wd: "."
+        env: {}
+        modifier: {}
+        environment:
+          name: "child_process"
+          config:
+            stdoe: "both"
+        stdout:
+          pipeline: []
+        stderr:
+          pipeline: []
+        output:
+          console:
+            close_success: true
+            queue_in_buffer: true
+            colors: true
+            stdin: false
+          linter:
+            no_trace: false
+            immediate: false
+        version: 2
+  }
+]

@@ -3,11 +3,12 @@
   <loadproperties srcFile="conf/deploy.properties"/>
 
   <target name="deploy">
-    <sync todir="${deploy.opencomputers}/EnergyWatchdog" overwrite="true" includeEmptyDirs="true" verbose="${deploy.verbose}">
+    <delete dir="${deploy.opencomputers}/EnergyWatchdog" verbose="${deploy.verbose}" />
+    <copy todir="${deploy.opencomputers}/EnergyWatchdog" overwrite="true" includeEmptyDirs="true" verbose="${deploy.verbose}">
         <fileset dir="../opencomputer" />
-    </sync>
+    </copy>
 
-    <copy todir="${deploy.httpd}" overwrite="true" verbose="${deploy.verbose}">
+    <copy todir="${deploy.httpd}" overwrite="true" includeEmptyDirs="true" verbose="${deploy.verbose}">
         <fileset dir="../www" />
     </copy>
   </target>
