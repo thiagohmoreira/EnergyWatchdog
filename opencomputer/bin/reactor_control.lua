@@ -17,6 +17,9 @@ local function main(args, options)
     local reactor = component.getPrimary("br_reactor")
     local capacitor = component.getPrimary("capacitor_bank")
 
+    local maxEnergyStored = capacitor.getMaxEnergyStored()
+    local minEnergyValue = maxEnergyStored * minChargePercentage
+
     -- TODO: Ensure same turbine order across restarts
     local turbines = {}
     for addr in component.list("br_turbine") do
@@ -53,21 +56,9 @@ local function main(args, options)
             })
         end
 
-        -- Create capacitor monitoring table
-        local capacitorsInfo = prettyTable:new{
-            head = {
-                '#',
-                'Charge (RF | %)',
-                'I/O (RF/t)',
-                'ETA'
-            },
-            colWidths = { 1, 45, 12, -50 },
-            style = { marginLeft = 2, compact = true }
-        }
-        local minCharge
 
+        -- Capacitor bank data gathering
         local energyStored = capacitor.getEnergyStored()
-        local maxEnergyStored = capacitor.getMaxEnergyStored()
         local energyStoredPer = (energyStored / maxEnergyStored)
         local averageChangePerTick = capacitor.getAverageChangePerTick()
 
@@ -79,11 +70,23 @@ local function main(args, options)
             if averageChangePerTick > 0 then
                 energy = maxEnergyStored - energyStored
             else
-                energy = energyStored
+                energy = energyStored - minEnergyValue
             end
 
             emptyFullETA = math.floor(energy / (averageChangePerTick * 20))
         end
+
+        -- Create capacitor monitoring table
+        local capacitorsInfo = prettyTable:new{
+            head = {
+                '#',
+                'Charge (RF | %)',
+                'I/O (RF/t)',
+                'ETA ' .. (averageChangePerTick > 0 and 'to fill' or 'to reactor startup')
+            },
+            colWidths = { 1, 45, 12, -50 },
+            style = { marginLeft = 2, compact = true }
+        }
 
         capacitorsInfo:push({
             1,
@@ -134,7 +137,9 @@ local function main(args, options)
                 "Uptime: %s\n\n" ..
 
                 "Reactor Monitoring\n\n" ..
-                "  State: %s | Last update: %s\n" ..
+                "  State: %s | Last change: %s\n" ..
+                "  Hot Fluid: %s / %s | %s mB/t%s\n" ..
+                "  Coolant: %s / %s\n" ..
                 "%s\n" ..
 
                 "Capacitor Monitoring\n\n" ..
@@ -147,6 +152,12 @@ local function main(args, options)
 
             reactor.getActive() and 'Active' or 'Inactive',
             lastUpdate == nil and '-' or util.secsToTime(lastUpdate) .. string.rep(string.char(32), 50),
+            util.commaInt(reactor.getHotFluidAmount()),
+            util.commaInt(reactor.getHotFluidAmountMax()),
+            util.commaInt(reactor.getHotFluidProducedLastTick()),
+            string.rep(string.char(32), 10),
+            util.commaInt(reactor.getCoolantAmount()),
+            util.commaInt(reactor.getCoolantAmountMax()) .. string.rep(string.char(32), 10),
             reactorRodsInfo:toString(),
             capacitorsInfo:toString(),
             turbinesInfo:toString()
