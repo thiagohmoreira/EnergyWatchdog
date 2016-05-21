@@ -1,0 +1,8 @@
+{
+  "reactors": [ {
+    "address": "abcd"
+  }, {
+    "address": "efgh"
+  } ],
+  "runs": 0
+}

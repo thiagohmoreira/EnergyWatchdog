@@ -5,7 +5,7 @@
 --------------------------
 
 local unicode = require("unicode")
-local util = require("util")
+local util = require("util") -- for applyIf
 
 -------------------------------------------------------------------------------
 
