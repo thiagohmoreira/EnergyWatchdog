@@ -50,7 +50,7 @@ function util.splitSecs(secs)
     local hours = math.floor(remainder / util.HOUR)
     remainder = remainder % util.HOUR
     local minutes = math.floor(remainder / util.MINUTE)
-    local seconds = remainder % util.MINUTE
+    local seconds = math.floor(remainder % util.MINUTE)
 
     return weeks, days, hours, minutes, seconds
 end
@@ -58,7 +58,11 @@ end
 function util.secsToTime(s)
     local weeks, days, hours, minutes, seconds = util.splitSecs(math.abs(s))
 
-    local time = seconds .. ' second(s), '
+    local time = ''
+
+    if s == 0 or seconds > 0 then
+        time = seconds .. ' second(s), '
+    end
 
     if minutes > 0 then
         time  = minutes .. ' minute(s), ' .. time
